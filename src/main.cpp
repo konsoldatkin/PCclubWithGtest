@@ -14,6 +14,7 @@ int main(int argc, char** argv)
         std::cout << "File does not exist" << std::endl;
         return EXIT_FAILURE;
     }
+   //std::string file_name = "C:/Users/TitanPC/Desktop/PCclubWithGtest1/src/test_data/text_table.txt";
     auto club = PC_club::core::PCclub(file_name);
     return EXIT_SUCCESS;
 }

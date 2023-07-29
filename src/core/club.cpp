@@ -1,321 +1,341 @@
 #include "club.hpp"
+#include "utils.hpp"
+
 #include <cctype>
+#include <cmath>
+#include <ctime>
+#include <exception>
 #include <fstream>
+#include <iomanip>
+#include <ios>
 #include <iostream>
 #include <istream>
+#include <regex>
 #include <set>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
-#include <regex>
-#include <stdexcept>
-#include <cmath>
 
-namespace PC_club::core
-{
-namespace
-{
-    bool valid_time_form(const std::string& timeStr) {
-		std::regex pattern("^([0-1][0-9]|2[0-3]):([0-5][0-9])$");
-		return std::regex_match(timeStr, pattern);
-	}
-    bool non_space_char(const std::string& str) {
-		return std::find_if(str.begin(), str.end(), [](char c) {
-			return !std::isspace(static_cast<unsigned char>(c));
-		}) != str.end();
-	}
-    void rm_str_from_list(std::list<std::string>& myList, const std::string& target) {
-		
-		for (auto it = myList.begin(); it != myList.end(); ) {
-			
-			if (*it == target) {
-				it = myList.erase(it);
-			}
-			else {
-				++it;
-			}
-		}
-	}
-    bool is_element_in_list(const std::list<std::string>& myList, const std::string& target) {
-        for (const auto& element : myList) {
-            if (element == target) {
-                return true;
+namespace PC_club::core {
+    namespace {
+        bool valid_time_form(const std::string& timeStr) {
+            std::regex pattern("^([0-1][0-9]|2[0-3]):([0-5][0-9])$");
+            return std::regex_match(timeStr, pattern);
+        }
+        bool non_space_char(const std::string& str) {
+            return std::find_if(str.begin(), str.end(), [](char c) {
+                return !std::isspace(static_cast<unsigned char>(c));
+                }) != str.end();
+        }
+        void rm_str_from_list(std::list<std::string>& myList,
+            const std::string& target) {
+
+            for (auto it = myList.begin(); it != myList.end();) {
+
+                if (*it == target) {
+                    it = myList.erase(it);
+                }
+                else {
+                    ++it;
+                }
             }
         }
-        return false;
-    }
-
-    bool compare_time(const std::string &time1, const std::string &time2) {
-        int hour1 = std::stoi(time1.substr(0, 2));
-        int minute1 = std::stoi(time1.substr(3, 2));
-
-        int hour2 = std::stoi(time2.substr(0, 2));
-        int minute2 = std::stoi(time2.substr(3, 2));
-        if (hour1 < hour2) {
-            return true;
-        }
-        else if (hour1 > hour2) {
+        bool is_element_in_list(const std::list<std::string>& myList,
+            const std::string& target) {
+            for (const auto& element : myList) {
+                if (element == target) {
+                    return true;
+                }
+            }
             return false;
         }
-        else {
-            return minute1 <= minute2;
-        }
-    }
-    void calc_of_time(const std::string &time,
-        std::pair<int, std::string> &time_tables, std::pair<int, bool> &busy_tables, const int &price) {
 
-        int hour1 = std::stoi((time_tables.second).substr(0, 2));
-        int minute1 = std::stoi((time_tables.second).substr(3, 2));
-
-        int hour2 = std::stoi(time.substr(0, 2));
-        int minute2 = std::stoi(time.substr(3, 2));
-
-        int difference = (hour2 * 60 + minute2) - (hour1 * 60 + minute1);
-        time_tables.first += difference;
-
-        busy_tables.first += std::ceil(double(difference) / 60.0) * price;
-        busy_tables.second = 0;
-    }
-    void correct(const std::string &str, const int &number, std::string &sequence_in_time, const std::string &closing_time) {
-
-        std::string str_hp = str.substr(0, 5);
-        if (!compare_time(str_hp, closing_time)) {
-            auto error_message = std::string{ "Event time is greater than closing time" } + str;
-            throw std::invalid_argument(error_message);
-        }
-        if (!valid_time_form(str_hp)) {
-            auto error_message = std::string{ "Incorrect event time" } + str;
-            throw std::invalid_argument(error_message);
-        }
-        if (!compare_time(sequence_in_time, str_hp)) {
-            auto error_message = std::string{ "The time of the previous event is greater" } + str;
-            throw std::invalid_argument(error_message);
-        }
-        sequence_in_time = str_hp;
-
-        if (str.substr(6, 1) == "2") {
-            std::regex pattern("[1-" + std::to_string(number) + "]");
-            str_hp = str.substr(str.size() - 1);
-
-            if (!std::regex_match(str_hp, pattern)) {
-                auto error_message = std::string{ "Incorrect number table" } + str;
-                throw std::invalid_argument(error_message);
+        bool compare_time(const std::tm& time1, const std::tm& time2) {
+            if (time1.tm_hour < time2.tm_hour) {
+                return true;
             }
-
-            std::regex pattern1(" [1-4] [a-z0-9_-]+");
-            str_hp = str.substr(5, str.size() - 10);
-
-            if (!std::regex_match(str_hp, pattern1)) {
-                auto error_message = std::string{ "Invalid number or name" } + str;
-                throw std::invalid_argument(error_message);
+            else if (time1.tm_hour > time2.tm_hour) {
+                return false;
             }
-            return;
-
-        }
-        std::regex pattern(" [1-4] [a-z0-9_-]+");
-        str_hp = str.substr(5);
-
-        if (!std::regex_match(str_hp, pattern)) {
-            auto error_message = std::string{ "Invalid number or name" } + str;
-            throw std::invalid_argument(error_message);
+            else {
+                return time1.tm_min <= time2.tm_min;
+            }
         }
 
-    }
-}
-
-PCclub::PCclub(std::string &file_name)
-{   
-
-    std::ifstream input;
-    input.open(file_name);
-    if (!input.is_open())
-        throw std::logic_error("");
-    std::string received_line;
-
-    std::regex pattern("^[1-9][0-9]*$");
-
-    std::getline(input, received_line);
-    if(std::regex_match(received_line, pattern)){
-        number_tables = std::stoi(received_line);
-    }else{
-        auto error_message = std::string{"Incorrect table"} + received_line;
-        throw std::invalid_argument(error_message);
-    }   
-
-    std::getline(input, received_line);
-    if (valid_time_form(received_line.substr(0, 5)) &&
-        valid_time_form(received_line.substr(6, 5))) {
-        opening_time = received_line.substr(0, 5);
-        closing_time = received_line.substr(6, 5);
-        if (opening_time == closing_time) {
-            auto error_message = std::string{ "Incorrect time" } + received_line;
-            throw std::invalid_argument(error_message);
+        void calc_of_time(const std::tm& time, TableInfo& tables, const int& price) {
+            int difference = (time.tm_hour * 60 + time.tm_min) - (tables.current_occupation_time.tm_hour * 60 + tables.current_occupation_time.tm_min);
+            tables.occupied_minutes += difference;
+            tables.earned += std::ceil(double(difference) / 60.0) * price;
+            tables.occupied = 0;
         }
-    }else{
-        auto error_message = std::string{ "Incorrect time" } + received_line;
-        throw std::invalid_argument(error_message);
-    }
 
-    std::getline(input, received_line);
-    if (std::regex_match(received_line, pattern)) {
-        price = std::stoi(received_line);
-    }
-    else {
-        auto error_message = std::string{ "Invalid string" } + received_line;
-        throw std::invalid_argument(error_message);
-    }
+    } // namespace
 
-    for (int i = 0; i < number_tables; i++) {
-        this->time_tables.push_back({ 0, "00:00" });
-        this->busy_tables.push_back({ 0.0, 0 });
-    }
+    // погугли что такое enum и enum class
 
-    std::cout << opening_time << '\n';
 
-    std::string sequence_in_time = "00:00";
-    while (!input.eof()){
-        std::getline(input, received_line);
-        if (non_space_char(received_line)) {
-            correct(received_line, number_tables, sequence_in_time, closing_time);
-            query_proces(received_line);
+    int readInteger(std::istream& input) {
+        std::string line;
+        if (std::getline(input, line).fail()) {
+            throw std::invalid_argument(line);
         }
-    }
-
-    exit_print();
-
-}
-
-void PCclub::query_proces(std::string str) {
-
-    switch (std::stoi(str.substr(6, 1))) {
-    case 1:
-        ID_1(str.substr(0, 5), str.substr(8));
-        break;
-    case 2:
-        ID_2(str.substr(0, 5), str.substr(8, str.size() - 10), str.substr(str.size() - 1));
-        break;
-    case 3:
-        ID_3(str.substr(0, 5), str.substr(8));
-        break;
-    case 4:
-        ID_4(str.substr(0, 5), str.substr(8));
-        break;
-    }
-}
-
-void PCclub::ID_1(std::string time, std::string name){
-    std::cout << time << " 1 " << name << '\n';
-    if (compare_time(time, opening_time) && (time != opening_time)) {
-        std::cout << time << " 13 " << "NotOpenYet" << '\n';
-        return;
-    }
-    if (clients.count(name)) {
-        std::cout << time  << " 13 " << "YouShallNotPass" << '\n';
-        return;
-    }
-    clients.insert({ name, -1 });
-}
-void PCclub::ID_2(std::string time, std::string name, std::string num, std::string id) {
-    std::cout << time << " " << id << " " << name << " " << num << '\n';
-    if (clients.count(name) == 0  ) {
-        std::cout << time << " 13 " << "ClientUnknown" << '\n';
-        return;
-    }
-    if (busy_tables[std::stoi(num)-1].second) {
-        std::cout << time << " 13 " << "PlaceIsBusy" << '\n';
-        return;
-    }
-    if (clients[name] != -1){
-        int num_table = clients[name];
-        calc_of_time(time, time_tables[num_table], busy_tables[num_table], price);
-        time_tables[std::stoi(num) - 1].second = time;
-        busy_tables[std::stoi(num) - 1].second = 1;
-        clients[name] = std::stoi(num) - 1;
-
-    }else{
-        time_tables[std::stoi(num) - 1].second = time;
-        busy_tables[std::stoi(num) - 1].second = 1;
-        clients[name] = std::stoi(num) - 1;
-        rm_str_from_list(queue, name);
-    }
-
-
-}
-void PCclub::ID_3(std::string time, std::string name) {
-
-    if (!clients.count(name)) {
-        std::cout << time << " 13 " << "ClientUnknown" << '\n';
-        return;
-    }
-    if (queue.size() < number_tables){
-        std::cout << time << " " << "3" << " " << name << '\n';
-        if (!is_element_in_list(queue, name)) {
-            queue.push_back(name);
+        std::size_t pos;
+        int result = std::stoi(line, &pos);
+        if (pos != line.size() || result == 0) {
+            throw std::invalid_argument(line);
+            //std::exit(EXIT_FAILURE);
         }
+        return result;
+    }
+
+    WorkingHours readWorkingHours(std::istream& input) {
+        std::string line;
+        if (std::getline(input, line).fail()) {
+            throw std::invalid_argument{line};
+        }
+        auto line_stream = std::stringstream{ line };
+        auto openTimeResult = readTime(line_stream);
+        if (openTimeResult.fail) {
+            throw std::invalid_argument{line};
+        }
+
+        //line_stream = std::stringstream{ line };
+        auto closeTimeResult = readTime(line_stream);
+        if (closeTimeResult.fail) {
+            throw std::invalid_argument{line};
+        }
+
+        return { .open = openTimeResult.time, .close = closeTimeResult.time };
+    }
+
+    std::vector<Event> readEvents(std::ifstream& input) {
+
+        std::vector<Event> events;
+        while (!input.eof()) {
+            std::string line;
+            if (std::getline(input, line).fail()) {
+                // TODO: look at me
+                throw std::invalid_argument{""};
+            }
+            try {
+
+                events.push_back(Event{ line });
+            }
+            catch (...) {
+                throw std::invalid_argument{line};
+            }
+        }
+        return events;
+    }
+
+    PCclub::PCclub(std::string& file_name) {
+        std::ifstream input;
+        input.open(file_name);
+        if (!input.is_open())
+            throw std::logic_error("");
+
+        number_tables = readInteger(input);
+        working_hours = readWorkingHours(input);
+
+        price = readInteger(input);
+
         for (int i = 0; i < number_tables; i++) {
-            if (busy_tables[i].second == 0) {
-                std::cout << time << " 13 " << "ICanWaitNoLonger!" << '\n';
-                break;
-            }
+            tables.push_back(TableInfo{
+                .current_occupation_time = std::tm{.tm_min = 0, .tm_hour = 0},
+                .occupied_minutes = 0,
+                .earned = 0,
+                .occupied = false,
+                });
         }
-    }else {
-        rm_str_from_list(queue, name);
-        ID_4(time, name, "11");
-    }
-}
-void PCclub::ID_4(std::string time, std::string name, std::string id) {
-    if (!clients.count(name)) {
-        std::cout << time << " 13 " << "ClientUnknown" << '\n';
-        return;
-    }
-    if (clients[name] == -1 && id == "11") {
-        clients.erase(name);
-        std::cout << time << " " << id << " " << name << '\n';
-        return;
-    }
-    if (clients[name] == -1) {
-        clients.erase(name);
-        rm_str_from_list(queue, name);
-        std::cout << time << " 4 " << name << '\n';
-        return;
-    }
-    std::cout << time << " " << id << " " << name << '\n';
-    int num_table = clients[name];
-    calc_of_time(time, time_tables[num_table], busy_tables[num_table], price);
-    clients.erase(name);
-    if (!queue.empty() && time != closing_time) {
-        std::string fst_from_queue = queue.front();
-        queue.pop_front();
-        ID_2(time, fst_from_queue, std::to_string(num_table + 1), "12");
-    }
-}
 
-void PCclub::exit_print() {
-
-    while (!clients.empty()) {
-        std::string key = clients.begin()->first;
-        ID_4(closing_time, key, "11");
-    }
-    std::cout << closing_time << '\n';
-    std::string hours;
-    std::string mins;
-    for (int i = 0; i < number_tables; i++) {
-
-        int minut = time_tables[i].first;
-        int hour = minut / 60;
-        int min = minut % 60;
-        if (hour / 10 != 0) {
-            hours = std::to_string(hour / 10) + std::to_string(hour % 10);
-        }else {
-            hours = "0" + std::to_string(hour % 10);
+        std::string sequence_in_time = "00:00";
+        std::vector<Event> events = readEvents(input);
+        // write opening hour
+        writeTime(std::cout, working_hours.open);
+        std::cout << '\n';
+        for (const Event& event : events) {
+            handleEvent(event);
         }
-        if (min / 10 != 0) {
-            mins = std::to_string(min / 10) + std::to_string(min % 10);
+
+        exit_print();
+    }
+
+    void PCclub::handleEvent(const Event& event) {
+
+        switch (event.type) {
+        case EventTypeClientCame:
+            ID_1(event);
+            break;
+        case EventTypeTakeSeat:
+            ID_2(event);
+            break;
+        case EventTypeWaiting:
+            ID_3(event);
+            break;
+        case EventTypeLeft:
+          ID_4(event);
+            break;
+        }
+    }
+
+    bool EqualTimes(const std::tm& a, const std::tm& b) {
+        return a.tm_hour == b.tm_hour && a.tm_min == b.tm_min;
+    }
+
+    void PCclub::ID_1(const Event& event) {
+        writeTime(std::cout, event.time);
+        std::cout << ' ' << event.type << ' ' << event.client_name<<'\n';
+
+        if (compare_time(event.time, working_hours.open) &&
+            !EqualTimes(event.time, working_hours.open)) {
+            writeTime(std::cout, event.time);
+            std::cout << ' ' << OutgoingEventTypeError << ' ' << "NotOpenYet" << '\n';
+            return;
+        }
+        if (clients.count(event.client_name)) {
+            writeTime(std::cout, event.time);
+            std::cout << ' ' << OutgoingEventTypeError << ' ' << "YouShallNotPass" << '\n';
+            return;
+        }
+        clients.insert({ event.client_name, -1 });
+    }
+
+    void PCclub::ID_2(const Event& event, std::string id) {
+        writeTime(std::cout, event.time);
+        std::cout << ' ' << id << ' ' << event.client_name << " " << event.table_number << '\n';
+
+        if (clients.count(event.client_name) == 0) {
+            writeTime(std::cout, event.time);
+            std::cout << ' ' << OutgoingEventTypeError << ' ' << "ClientUnknown" << '\n';
+            return;
+        }
+        if (tables[event.table_number - 1].occupied) {
+            writeTime(std::cout, event.time);
+            std::cout << ' ' << OutgoingEventTypeError << ' ' << "PlaceIsBusy" << '\n';
+            return;
+        }
+        if (clients[event.client_name] != -1) {
+            int num_table = clients[event.client_name];
+
+            calc_of_time(event.time , tables[num_table], price);
+            tables[event.table_number - 1].current_occupation_time = event.time;
+            tables[event.table_number - 1].occupied = 1;
+            clients[event.client_name] = event.table_number - 1;
+
         }
         else {
-            mins = "0" + std::to_string(min % 10);
+            tables[event.table_number - 1].current_occupation_time = event.time;
+            tables[event.table_number - 1].occupied = 1;
+            clients[event.client_name] = event.table_number - 1;
+            rm_str_from_list(queue, event.client_name);
         }
-        std::cout << i + 1 << " " << busy_tables[i].first << " " << hours << ":" << mins << '\n';
     }
-    std::exit(EXIT_FAILURE);
-}
-} // namespace pcclub::core
+
+    void PCclub::ID_3(const Event& event) {
+        if (!clients.count(event.client_name)) {
+            writeTime(std::cout, event.time);
+            std::cout << ' ' << OutgoingEventTypeError << ' ' << "ClientUnknown" << '\n';
+            return;
+        }
+        if (queue.size() < number_tables) {
+            writeTime(std::cout, event.time);
+            std::cout << ' ' << event.type << ' ' << event.client_name << '\n';
+            if (!is_element_in_list(queue, event.client_name)) {
+                queue.push_back(event.client_name);
+            }
+            for (int i = 0; i < number_tables; i++) {
+                if (tables[i].occupied == 0) {
+                    writeTime(std::cout, event.time);
+                    std::cout << ' ' << OutgoingEventTypeError << ' ' << "ICanWaitNoLonger!" << '\n';
+                    break;
+                }
+            }
+        }
+        else {
+            rm_str_from_list(queue, event.client_name);
+            ID_4(event, "11");
+        }
+
+    }
+
+    void PCclub::ID_4(const Event& event, std::string id) {
+        if (!clients.count(event.client_name)) {
+          writeTime(std::cout, event.time);
+          std::cout << ' ' << OutgoingEventTypeError << ' ' << "ClientUnknown" << '\n';
+          return;
+        }
+        if (clients[event.client_name] == -1 && id == "11") {
+          clients.erase(event.client_name);
+          writeTime(std::cout, event.time);
+          std::cout << ' ' << id << ' ' << event.client_name << '\n';
+          return;
+        }
+        if (clients[event.client_name] == -1) {
+          clients.erase(event.client_name);
+          rm_str_from_list(queue, event.client_name);
+          writeTime(std::cout, event.time);
+          std::cout << ' ' << event.type << ' ' << event.client_name << '\n';
+          return;
+        }
+        writeTime(std::cout, event.time);
+        std::cout << ' ' << id << ' ' << event.client_name << '\n';
+        int num_table = clients[event.client_name];
+        calc_of_time(event.time, tables[num_table], price);
+        clients.erase(event.client_name);
+        if (!queue.empty() && !EqualTimes(event.time, working_hours.close)) {
+
+          std::string name_first_from_queue = queue.front();
+
+
+          std::ostringstream oss;
+          writeTime(oss, event.time);
+          oss << ' ' << 2 << ' ' << queue.front()<< ' ' << num_table + 1;
+          auto str = oss.str();
+          Event first_from_queue(str);
+
+
+          queue.pop_front();
+
+          ID_2(first_from_queue, "12");
+        }
+    }
+
+    void PCclub::exit_print() {
+
+        std::ostringstream oss;
+
+        while (!clients.empty()) {
+          std::string key = clients.begin()->first;
+          writeTime(oss, working_hours.close);
+          oss << ' ' << 4 << ' ' << key;
+          auto str = oss.str();
+          Event closing_event(str);
+
+          ID_4(closing_event, "11");
+        }
+        writeTime(std::cout, working_hours.close);
+        std::cout << '\n';
+        std::string hours;
+        std::string mins;
+        for (int i = 0; i < number_tables; i++) {
+
+          int hour = tables[i].occupied_minutes / 60;
+          int min = tables[i].occupied_minutes % 60;
+          if (hour / 10 != 0) {
+            hours = std::to_string(hour / 10) + std::to_string(hour % 10);
+          } else {
+            hours = "0" + std::to_string(hour % 10);
+          }
+          if (min / 10 != 0) {
+            mins = std::to_string(min / 10) + std::to_string(min % 10);
+          } else {
+            mins = "0" + std::to_string(min % 10);
+          }
+          std::cout << i + 1 << " " << tables[i].earned << " " << hours << ":"
+                    << mins << '\n';
+        }
+        std::exit(EXIT_SUCCESS);
+    }
+
+} // namespace PC_club::core

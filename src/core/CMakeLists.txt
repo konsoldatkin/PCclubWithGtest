@@ -1,8 +1,9 @@
 project(core)
 
 set(core_Src
-    club.hpp
     club.cpp
+    event.cpp
+    utils.cpp
 )
 
 add_library(core ${core_Src})
