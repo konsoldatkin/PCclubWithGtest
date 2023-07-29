@@ -1,37 +1,45 @@
 #pragma once
 
-#include <string>
-#include <map>
-#include <vector>
+#include "event.hpp"
+
 #include <list>
+#include <map>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-namespace PC_club::core
-{
-	
-class PCclub
-{
-  public:
-	PCclub(std::string &file_name);
-	void query_proces(std::string str);
-	void ID_1(std::string time, std::string name);
-	void ID_2(std::string time, std::string name, std::string num, std::string id = "2");
-	void ID_3(std::string time, std::string name);
-	void ID_4(std::string time, std::string name, std::string id = "4");
-	void exit_print();
+namespace PC_club::core {
 
-  private:
-	int number_tables;
-	std::string opening_time;
-	std::string closing_time;
-	int price;
+	struct TableInfo {
+		std::tm current_occupation_time;
+		int occupied_minutes;
+		int earned;
+		bool occupied;
+	};
 
-	std::vector<std::pair<int, std::string>> time_tables;
-	std::vector<std::pair<int, bool>> busy_tables;
+	struct WorkingHours {
+		std::tm open;
+		std::tm close;
+	};
 
-	std::map<std::string, int> clients;
-	std::list<std::string> queue;
+	class PCclub {
+	public:
+		PCclub(std::string& file_name);
+		void handleEvent(const Event& event);
+		void ID_1(const Event& event);
+		void ID_2(const Event& event, std::string id = "2");
+		void ID_3(const Event& event);
+		void ID_4(const Event& event, std::string id = "4");
+		void exit_print();
 
+	private:
+		int price;
+		WorkingHours working_hours;
+		int number_tables;
+		std::vector<TableInfo> tables;
 
-};
+		std::map<std::string, int> clients;
+		std::list<std::string> queue;
+	};
 
-} // namespace csv_reader::core
+} // namespace PC_club::core
