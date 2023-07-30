@@ -10,7 +10,6 @@
 #include <ios>
 #include <iostream>
 #include <istream>
-#include <regex>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -19,15 +18,7 @@
 
 namespace PC_club::core {
     namespace {
-        bool valid_time_form(const std::string& timeStr) {
-            std::regex pattern("^([0-1][0-9]|2[0-3]):([0-5][0-9])$");
-            return std::regex_match(timeStr, pattern);
-        }
-        bool non_space_char(const std::string& str) {
-            return std::find_if(str.begin(), str.end(), [](char c) {
-                return !std::isspace(static_cast<unsigned char>(c));
-                }) != str.end();
-        }
+
         void rm_str_from_list(std::list<std::string>& myList,
             const std::string& target) {
 
@@ -72,7 +63,6 @@ namespace PC_club::core {
 
     } // namespace
 
-    // погугли что такое enum и enum class
 
 
     int readInteger(std::istream& input) {
@@ -84,9 +74,8 @@ namespace PC_club::core {
         int result = std::stoi(line, &pos);
         if (pos != line.size() || result == 0) {
             throw std::invalid_argument(line);
-            //std::exit(EXIT_FAILURE);
         }
-        return result;
+        return result; 
     }
 
     WorkingHours readWorkingHours(std::istream& input) {
@@ -109,18 +98,22 @@ namespace PC_club::core {
         return { .open = openTimeResult.time, .close = closeTimeResult.time };
     }
 
-    std::vector<Event> readEvents(std::ifstream& input) {
-
+    std::vector<Event> readEvents(std::ifstream& input, const int& number_tables) {
+        std::tm sequence_in_time{.tm_min = 00, .tm_hour = 00};
         std::vector<Event> events;
         while (!input.eof()) {
             std::string line;
             if (std::getline(input, line).fail()) {
-                // TODO: look at me
-                throw std::invalid_argument{""};
+                throw std::invalid_argument{line};
             }
             try {
-
+                Event nextEvent{ line };
+                if (!compare_time(sequence_in_time, nextEvent.time) ||
+                    nextEvent.table_number > number_tables) {
+                    throw std::invalid_argument{line};
+                }
                 events.push_back(Event{ line });
+                sequence_in_time = nextEvent.time;
             }
             catch (...) {
                 throw std::invalid_argument{line};
@@ -132,8 +125,7 @@ namespace PC_club::core {
     PCclub::PCclub(std::string& file_name) {
         std::ifstream input;
         input.open(file_name);
-        if (!input.is_open())
-            throw std::logic_error("");
+
 
         number_tables = readInteger(input);
         working_hours = readWorkingHours(input);
@@ -149,8 +141,7 @@ namespace PC_club::core {
                 });
         }
 
-        std::string sequence_in_time = "00:00";
-        std::vector<Event> events = readEvents(input);
+        std::vector<Event> events = readEvents(input, number_tables);
         // write opening hour
         writeTime(std::cout, working_hours.open);
         std::cout << '\n';
@@ -201,7 +192,7 @@ namespace PC_club::core {
         clients.insert({ event.client_name, -1 });
     }
 
-    void PCclub::ID_2(const Event& event, std::string id) {
+    void PCclub::ID_2(const Event& event, const int& id) {
         writeTime(std::cout, event.time);
         std::cout << ' ' << id << ' ' << event.client_name << " " << event.table_number << '\n';
 
@@ -254,18 +245,18 @@ namespace PC_club::core {
         }
         else {
             rm_str_from_list(queue, event.client_name);
-            ID_4(event, "11");
+            ID_4(event, OutgoingEventTypeLeft);
         }
 
     }
 
-    void PCclub::ID_4(const Event& event, std::string id) {
+    void PCclub::ID_4(const Event& event, const int& id) {
         if (!clients.count(event.client_name)) {
           writeTime(std::cout, event.time);
           std::cout << ' ' << OutgoingEventTypeError << ' ' << "ClientUnknown" << '\n';
           return;
         }
-        if (clients[event.client_name] == -1 && id == "11") {
+        if (clients[event.client_name] == -1 && id == OutgoingEventTypeLeft) {
           clients.erase(event.client_name);
           writeTime(std::cout, event.time);
           std::cout << ' ' << id << ' ' << event.client_name << '\n';
@@ -297,7 +288,7 @@ namespace PC_club::core {
 
           queue.pop_front();
 
-          ID_2(first_from_queue, "12");
+          ID_2(first_from_queue, OutgoingEventTypeTakeSeat);
         }
     }
 
@@ -311,8 +302,9 @@ namespace PC_club::core {
           oss << ' ' << 4 << ' ' << key;
           auto str = oss.str();
           Event closing_event(str);
+          oss.str("");
 
-          ID_4(closing_event, "11");
+          ID_4(closing_event, OutgoingEventTypeLeft);
         }
         writeTime(std::cout, working_hours.close);
         std::cout << '\n';
@@ -335,7 +327,6 @@ namespace PC_club::core {
           std::cout << i + 1 << " " << tables[i].earned << " " << hours << ":"
                     << mins << '\n';
         }
-        std::exit(EXIT_SUCCESS);
     }
 
 } // namespace PC_club::core
