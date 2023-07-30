@@ -11,7 +11,7 @@
 12:05 1 moisei
 12:06 2 moisei 1
 12:30 2 iosif-12_ 4
-13:25 2 iosif-12
+13:25 1 iosif-12
 14:37 3 iosif-12_
 15:58 1 _-fedor--
 15:58 3 _-fedor--

@@ -27,9 +27,9 @@ namespace PC_club::core {
 		PCclub(std::string& file_name);
 		void handleEvent(const Event& event);
 		void ID_1(const Event& event);
-		void ID_2(const Event& event, std::string id = "2");
+		void ID_2(const Event& event, const int& id = 2);
 		void ID_3(const Event& event);
-		void ID_4(const Event& event, std::string id = "4");
+		void ID_4(const Event& event, const int& id = 4);
 		void exit_print();
 
 	private:
